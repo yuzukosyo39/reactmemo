@@ -1,69 +1,95 @@
-import React, { useState, useEffect } from 'react';
-import Amplify, { API, graphqlOperation } from 'aws-amplify';
-import { createNote as createNoteMutation, deleteNote as deleteNoteMutation } from './graphql/mutations';
-import { listNotes } from './graphql/queries';
-import { ListNotesQuery, CreateNoteInput } from './API';
-import { GraphQLResult } from '@aws-amplify/api';
+import React, { useEffect, useState } from "react";
+import Amplify, { API, graphqlOperation } from "aws-amplify";
+import { createNote } from "./graphql/mutations";
+import { listNotes } from "./graphql/queries";
 
-import logo from './logo.svg';
-import './App.css';
+import { ListNotesQuery, CreateNoteInput } from "./API";
 
-import awsExports from './aws-exports';
+import "./App.css";
+
+import awsExports from "./aws-exports";
+import { GraphQLResult } from "@aws-amplify/api";
 Amplify.configure(awsExports);
 
-const initialFormState = { name: '', description: '' };
+const initialState = { name: "", description: "" };
 
-function App() {
-  const [notes, setNotes] = useState<CreateNoteInput[]>([]);
-  const [formState, setFormState] = useState(initialFormState);
+const App: React.VFC = () => {
+  const [formState, setFormState] = useState(initialState);
+  const [todos, setTodos] = useState<CreateNoteInput[]>([]);
 
   useEffect(() => {
-    fetchNotes();
+    fetchTodos();
   }, []);
 
   const setInput = (key: string, value: string) => {
     setFormState({ ...formState, [key]: value });
   };
 
-  async function fetchNotes() {
-    const apiData = await API.graphql({ query: listNotes }) as GraphQLResult<ListNotesQuery>;
-    if (apiData.data?.listNotes?.items) {
-      const notes = apiData.data.listNotes.items as CreateNoteInput[];
-      setNotes(notes);
+  const fetchTodos = async () => {
+    try {
+      const todoData = (await API.graphql(
+        graphqlOperation(listNotes)
+      )) as GraphQLResult<ListNotesQuery>;
+      if (todoData.data?.listNotes?.items) {
+        const todos = todoData.data.listNotes.items as CreateNoteInput[];
+        setTodos(todos);
+      }
+    } catch (err) {
+      console.log("error fetching todos");
     }
-  }
+  };
+
+  const addNote = async () => {
+    try {
+      if (!formState.name || !formState.description) return;
+      const todo: CreateNoteInput = { ...formState };
+      setTodos([...todos, todo]);
+      setFormState(initialState);
+      (await API.graphql(
+        graphqlOperation(createNote, { input: todo })
+      )) as GraphQLResult<CreateNoteInput>;
+    } catch (err) {
+      console.log("error creating todo:", err);
+    }
+  };
 
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-      </header>
-      <div>
-        <h1>React Memo</h1>
-        <input
-          onChange={(event) => setInput('name', event.target.value)}
-          placeholder="name"
-          value={formState.name}
-        />
-        <input
-          onChange={(event) => setInput('description', event.target.value)}
-          placeholder="description"
-          value={formState.description}
-        />
-        <button>Create Note</button>
-        <div style={{marginBottom: 30}}>
-          {
-            notes.map(note => (
-              <div key={note.id || note.name}>
-                <h2>{note.name}</h2>
-                <p>{note.description}</p>
-              </div>
-            ))
-          }
+    <div style={styles.container}>
+      <h2>React Memo</h2>
+      <input
+        onChange={(event) => setInput("name", event.target.value)}
+        style={styles.input}
+        value={formState.name}
+        placeholder="Name"
+      />
+      <input
+        onChange={(event) => setInput("description", event.target.value)}
+        style={styles.input}
+        value={formState.description}
+        placeholder="Description"
+      />
+      <button style={styles.button} onClick={addNote}>
+        Create Note
+      </button>
+      {todos.map((todo, index) => (
+        <div key={todo.id ? todo.id : index} style={styles.note}>
+          <h2 style={styles.noteName}>{todo.name}</h2>
+          <p style={styles.noteDesctiption}>{todo.description}</p>
         </div>
-      </div>
+      ))}
     </div>
   );
-}
+};
+
+const styles: {
+  [key: string]: React.CSSProperties;
+} = {
+  container: {},
+  todo: {},
+  input: {},
+  noteName: {},
+  noteDescription: {},
+  button: {},
+};
 
 export default App;
