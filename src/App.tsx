@@ -1,9 +1,12 @@
 import React, { useEffect, useState } from "react";
 import Amplify, { API, graphqlOperation } from "aws-amplify";
-import { createNote } from "./graphql/mutations";
+import {
+  createNote as createNoteMutation,
+  deleteNote as deleteNoteMutation,
+} from "./graphql/mutations";
 import { listNotes } from "./graphql/queries";
 
-import { ListNotesQuery, CreateNoteInput } from "./API";
+import { ListNotesQuery, CreateNoteInput, DeleteNoteInput } from "./API";
 
 import "./App.css";
 
@@ -15,41 +18,54 @@ const initialState = { name: "", description: "" };
 
 const App: React.VFC = () => {
   const [formState, setFormState] = useState(initialState);
-  const [todos, setTodos] = useState<CreateNoteInput[]>([]);
+  const [notes, setNotes] = useState<CreateNoteInput[]>([]);
 
   useEffect(() => {
-    fetchTodos();
+    fetchNotes();
   }, []);
 
   const setInput = (key: string, value: string) => {
     setFormState({ ...formState, [key]: value });
   };
 
-  const fetchTodos = async () => {
+  const fetchNotes = async () => {
     try {
-      const todoData = (await API.graphql(
+      const noteData = (await API.graphql(
         graphqlOperation(listNotes)
       )) as GraphQLResult<ListNotesQuery>;
-      if (todoData.data?.listNotes?.items) {
-        const todos = todoData.data.listNotes.items as CreateNoteInput[];
-        setTodos(todos);
+      if (noteData.data?.listNotes?.items) {
+        const notes = noteData.data.listNotes.items as CreateNoteInput[];
+        setNotes(notes);
       }
     } catch (err) {
-      console.log("error fetching todos");
+      console.log("error fetching notes");
     }
   };
 
   const addNote = async () => {
     try {
       if (!formState.name || !formState.description) return;
-      const todo: CreateNoteInput = { ...formState };
-      setTodos([...todos, todo]);
+      const note: CreateNoteInput = { ...formState };
+      setNotes([...notes, note]);
       setFormState(initialState);
       (await API.graphql(
-        graphqlOperation(createNote, { input: todo })
+        graphqlOperation(createNoteMutation, { input: note })
       )) as GraphQLResult<CreateNoteInput>;
     } catch (err) {
-      console.log("error creating todo:", err);
+      console.log("error creating note:", err);
+    }
+  };
+
+  const deleteNote = async (id: string) => {
+    try {
+      const deleteNote: DeleteNoteInput = { id };
+      const newNotesArray = notes.filter((note) => note.id !== id);
+      setNotes(newNotesArray);
+      (await API.graphql(
+        graphqlOperation(deleteNoteMutation, { input: deleteNote })
+      )) as GraphQLResult<DeleteNoteInput>;
+    } catch (err) {
+      console.log("error deleting note:", err);
     }
   };
 
@@ -71,10 +87,11 @@ const App: React.VFC = () => {
       <button style={styles.button} onClick={addNote}>
         Create Note
       </button>
-      {todos.map((todo, index) => (
-        <div key={todo.id ? todo.id : index} style={styles.note}>
-          <h2 style={styles.noteName}>{todo.name}</h2>
-          <p style={styles.noteDesctiption}>{todo.description}</p>
+      {notes.map((note, index) => (
+        <div key={note.id ? note.id : index} style={styles.note}>
+          <h2 style={styles.noteName}>{note.name}</h2>
+          <p style={styles.noteDesctiption}>{note.description}</p>
+          <button onClick={() => deleteNote(note.id as string)}>Delete</button>
         </div>
       ))}
     </div>
